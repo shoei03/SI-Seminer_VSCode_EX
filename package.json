@@ -9,15 +9,26 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:jsbooster.showSelectedText"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "jsbooster.helloWorld",
-        "title": "Hello World"
+        "command": "jsbooster.showSelectedText",
+        "title": "Show Selected Text"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "jsbooster.showSelectedText",
+          "when": "editorTextFocus && editorHasSelection",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
