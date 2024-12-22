@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { callAPI } from './index';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Congratulations, your extension "jsbooster" is now active!');
@@ -18,11 +19,18 @@ export function activate(context: vscode.ExtensionContext) {
       // 選択したテキストを空白または、改行コードで区切る
       const selectedTextArray = selectedText.split(/[\s\n]+/);
 
+      // APIを叩く
+      const data = callAPI();
+
       if (selectedText) {
         // 選択したテキストを表示
         vscode.window.showInformationMessage(`選択したテキスト: ${selectedText}`);
         // 区切ったテキストを表示
         vscode.window.showInformationMessage(`区切ったテキスト: ${selectedTextArray}`);
+        // APIの結果を表示
+        data.then((res) => {
+          vscode.window.showInformationMessage(`APIの結果: ${res}`);
+        });
       } else {
         vscode.window.showInformationMessage('何も選択されていません。');
       }
