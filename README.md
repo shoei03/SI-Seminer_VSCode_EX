@@ -1,3 +1,9 @@
+# fastAPI起動メモ（野口版）
+
+cd SI-Seminer_VSCode_EX/server/src/server
+
+python3 -m uvicorn main:app --reload
+
 # jsbooster README
 
 This is the README for your extension "jsbooster". After writing up a brief description, we recommend including the following sections.
