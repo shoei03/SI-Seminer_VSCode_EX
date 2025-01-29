@@ -2,7 +2,7 @@
 
 cd SI-Seminer_VSCode_EX/server
 
-. ./.vev/bin/activate 
+. ./.venv/bin/activate 
 
 uvicorn main:app --reload
 
