@@ -1,8 +1,10 @@
 # fastAPI起動メモ（野口版）
 
-cd SI-Seminer_VSCode_EX/server/src/server
+cd SI-Seminer_VSCode_EX/server
 
-python3 -m uvicorn main:app --reload
+. ./.vev/bin/activate 
+
+uvicorn main:app --reload
 
 # jsbooster README
 
