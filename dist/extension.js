@@ -42,14 +42,25 @@ class ResultsProvider {
     _onDidChangeTreeData = new vscode.EventEmitter();
     onDidChangeTreeData = this._onDidChangeTreeData.event;
     results = [];
+    noResultsMessage = false; // 結果が空値かどうかのフラグ
     refresh(data) {
-        this.results = data.map(item => new ResultItem(`Slow: ${item.slow}`, `Fast: ${item.fast}`));
+        if (data.length === 0) {
+            this.noResultsMessage = true;
+            this.results = [];
+        }
+        else {
+            this.noResultsMessage = false;
+            this.results = data.map(item => new ResultItem(`Slow: ${item.slow}`, `Fast: ${item.fast}`));
+        }
         this._onDidChangeTreeData.fire();
     }
     getTreeItem(element) {
         return element;
     }
     getChildren(element) {
+        if (this.noResultsMessage) {
+            return Promise.resolve([new ResultItem("候補が見つかりませんでした", "")]);
+        }
         if (element) {
             return Promise.resolve([]);
         }
@@ -57,6 +68,7 @@ class ResultsProvider {
     }
     clear() {
         this.results = [];
+        this.noResultsMessage = false;
         this._onDidChangeTreeData.fire();
     }
 }
@@ -64,7 +76,7 @@ class ResultItem extends vscode.TreeItem {
     slow;
     fast;
     constructor(slow, fast) {
-        super(`${slow} → ${fast}`, vscode.TreeItemCollapsibleState.None);
+        super(`${slow} → \n${fast}`, vscode.TreeItemCollapsibleState.None);
         this.slow = slow;
         this.fast = fast;
         this.tooltip = `${slow} → ${fast}`;
@@ -88,11 +100,13 @@ function activate(context) {
                     // APIを叩く 入力値をキーとして値を取得
                     const res = await (0, index_1.callAPI)(selectedText);
                     const responseMessage = Array.isArray(res['response']) ? res['response'] : [];
+                    /*
                     if (responseMessage.length === 0) {
-                        vscode.window.showInformationMessage("候補が見つかりませんでした");
-                        resultsProvider.clear();
-                        return;
+                      vscode.window.showInformationMessage("候補が見つかりませんでした");
+                      resultsProvider.clear();
+                      return;
                     }
+                    */
                     // 結果をサイドバーに表示
                     resultsProvider.refresh(responseMessage);
                     // サイドバーを表示

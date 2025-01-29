@@ -12,12 +12,19 @@ class ResultsProvider implements vscode.TreeDataProvider<ResultItem> {
   readonly onDidChangeTreeData: vscode.Event<ResultItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
   private results: ResultItem[] = [];
+  private noResultsMessage: boolean = false; // 結果が空値かどうかのフラグ
 
   refresh(data: { slow: string; fast: string }[]): void {
-    this.results = data.map(item => new ResultItem(
-      `Slow: ${item.slow}`,
-      `Fast: ${item.fast}`
-    ));
+    if (data.length === 0) {
+      this.noResultsMessage = true;
+      this.results = [];
+    } else {
+      this.noResultsMessage = false;
+      this.results = data.map(item => new ResultItem(
+        `Slow: ${item.slow}`,
+        `Fast: ${item.fast}`
+      ));
+    }
     this._onDidChangeTreeData.fire();
   }
 
@@ -26,6 +33,10 @@ class ResultsProvider implements vscode.TreeDataProvider<ResultItem> {
   }
 
   getChildren(element?: ResultItem): Thenable<ResultItem[]> {
+    if (this.noResultsMessage) {
+      return Promise.resolve([new ResultItem("候補が見つかりませんでした", "")]);
+    }
+    
     if (element) {
       return Promise.resolve([]);
     }
@@ -34,6 +45,7 @@ class ResultsProvider implements vscode.TreeDataProvider<ResultItem> {
 
   clear(): void {
     this.results = [];
+    this.noResultsMessage = false;
     this._onDidChangeTreeData.fire();
   }
 }
@@ -43,7 +55,7 @@ class ResultItem extends vscode.TreeItem {
     public readonly slow: string,
     public readonly fast: string
   ) {
-    super(`${slow} → ${fast}`, vscode.TreeItemCollapsibleState.None);
+    super(`${slow} → \n${fast}`, vscode.TreeItemCollapsibleState.None);
     this.tooltip = `${slow} → ${fast}`;
   }
 }
@@ -73,11 +85,13 @@ export function activate(context: vscode.ExtensionContext) {
           const responseMessage: { fast: string; slow: string }[] = 
             Array.isArray(res['response']) ? res['response'] : [];
 
+          /*
           if (responseMessage.length === 0) {
             vscode.window.showInformationMessage("候補が見つかりませんでした");
             resultsProvider.clear();
             return;
-          }
+          } 
+          */
 
           // 結果をサイドバーに表示
           resultsProvider.refresh(responseMessage);
