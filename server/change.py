@@ -76,9 +76,9 @@ class ChangeCode:
         similar_keys = self.get_similar_keys(codes_slow_hash, code_slow_hash)
                 
         # 出力
+        fast_codes = []
         if similar_keys:
             print(f"類似した文字列のキー: {similar_keys}")
-            fast_codes = []
             for slow_key in similar_keys:
                 # 正規表現で数字を抽出
                 numbers = re.findall(r'\d+', slow_key)
