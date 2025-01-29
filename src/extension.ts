@@ -37,8 +37,12 @@ export function activate(context: vscode.ExtensionContext) {
           // 型アサーションで，全てApiResponse型（string）として扱う
           const response = res as ApiResponse;
           // 入力値をキーとして値を取得
-          const responseMessage = response[selectedText] || `Unknown input: ${selectedText}`;
-          vscode.window.showInformationMessage(`APIの結果: ${responseMessage}`);
+          //const responseMessage = response['response'] || `Unknown input: ${selectedText}`;
+          const responseMessage: { fast: string; slow: string }[] = Array.isArray(response['response']) ? response['response'] : [];
+          responseMessage.forEach((item, index) => {
+            vscode.window.showInformationMessage(`Index ${index}: fast = ${item.fast}, slow = ${item.slow}`);
+          });
+          // vscode.window.showInformationMessage(`APIの結果: ${responseMessage}`);
         });
       } else {
         vscode.window.showInformationMessage('何も選択されていません。');
