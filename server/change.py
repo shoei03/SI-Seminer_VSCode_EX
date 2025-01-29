@@ -84,10 +84,13 @@ class ChangeCode:
                 numbers = re.findall(r'\d+', slow_key)
                 fast_key = "fast" + str(numbers[0])
 
-                # マッチしたslowコードに対応するfastコードを検索
-                print(fast_key)
+                # マッチしたslowコードとそれに対応するfastコードを検索
+                slow_code = codes_slow[slow_key].strip().replace('\n', ' ')  # 改行文字を半角スペースに置換
                 fast_code = codes_fast[fast_key].strip().replace('\n', ' ')  # 改行文字を半角スペースに置換
-                fast_codes.append(fast_code)
+                fast_codes.append({
+                    'fast':fast_code,
+                    'slow':slow_code
+                })
                 print(fast_code)
         else:
             print("類似した文字列が見つかりませんでした。")

@@ -57,6 +57,7 @@ if similar_keys:
 
         # マッチしたslowコードに対応するfastコードを検索
         print(fast_key)
+        slow_code = codes_slow[slow_key].strip().replace('\n', ' ')  # 改行文字を半角スペースに置換
         fast_code = codes_fast[fast_key].strip().replace('\n', ' ')  # 改行文字を半角スペースに置換
         print(fast_code)
         print()
