@@ -1,103 +1,158 @@
 import * as vscode from 'vscode';
 import { callAPI } from './index';
 
-// 任意のプロパティを持つAPIレスポンスの型を定義
+// APIレスポンスの型定義
 interface ApiResponse {
   [key: string]: string;
 }
 
 // サイドバーへの表示形式の成形
-class ResultsProvider implements vscode.TreeDataProvider<ResultItem> {
-  private _onDidChangeTreeData: vscode.EventEmitter<ResultItem | undefined | null | void> = new vscode.EventEmitter<ResultItem | undefined | null | void>();
-  readonly onDidChangeTreeData: vscode.Event<ResultItem | undefined | null | void> = this._onDidChangeTreeData.event;
+class ResultsProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
+  private _onDidChangeTreeData: vscode.EventEmitter<vscode.TreeItem | undefined | null | void> = new vscode.EventEmitter<vscode.TreeItem | undefined | null | void>();
+  readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
-  private results: ResultItem[] = [];
-  private noResultsMessage: boolean = false; // 結果が空値かどうかのフラグ
+  private results: vscode.TreeItem[] = [];
 
-  refresh(data: { slow: string; fast: string }[]): void {
+  refresh(selectedText: string, data: { slow: string; fast: string }[]): void {
+    // 選択した文字列
+    this.results = [new SelectedTextItem(selectedText)];
     if (data.length === 0) {
-      this.noResultsMessage = true;
-      this.results = [];
+      this.results.push(new EmptyResultItem()); // 該当コードが存在しないとき
     } else {
-      this.noResultsMessage = false;
-      this.results = data.map(item => new ResultItem(
-        `Slow: ${item.slow}`,
-        `Fast: ${item.fast}`
-      ));
+      data.forEach((item, index) => {
+        const parentItem = new PairGroupItem(index);
+        parentItem.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
+        this.results.push(parentItem);
+        
+        // slowとfastをそれぞれ格納
+        parentItem.children = [
+          new SlowItem(item.slow),
+          new FastArrowItem(item.fast)
+        ];
+      });
     }
     this._onDidChangeTreeData.fire();
+    
+    // 強制的に全ての項目を展開
+    vscode.commands.executeCommand('workbench.actions.treeView.jsboosterResults.expandAll');
   }
 
-  getTreeItem(element: ResultItem): vscode.TreeItem {
+  getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
     return element;
   }
 
-  getChildren(element?: ResultItem): Thenable<ResultItem[]> {
-    if (this.noResultsMessage) {
-      return Promise.resolve([new ResultItem("候補が見つかりませんでした", "")]);
-    }
-    
-    if (element) {
-      return Promise.resolve([]);
+  getChildren(element?: vscode.TreeItem): Thenable<vscode.TreeItem[]> {
+    if (element instanceof PairGroupItem) {
+      return Promise.resolve(element.children);
     }
     return Promise.resolve(this.results);
   }
 
   clear(): void {
-    this.results = [];
-    this.noResultsMessage = false;
+    this.results = [new EmptyResultItem()];
     this._onDidChangeTreeData.fire();
   }
 }
 
-class ResultItem extends vscode.TreeItem {
-  constructor(
-    public readonly slow: string,
-    public readonly fast: string
-  ) {
-    super(`${slow} → \n${fast}`, vscode.TreeItemCollapsibleState.None);
-    this.tooltip = `${slow} → ${fast}`;
+// 選択した文字列の表示形式
+class SelectedTextItem extends vscode.TreeItem {
+  constructor(selectedText: string) {
+    super(`選択したコード : ${selectedText}`, vscode.TreeItemCollapsibleState.None);
+    this.tooltip = selectedText;
   }
+}
+
+// 返されたslowとfastのペアをまとめる
+class PairGroupItem extends vscode.TreeItem {
+  children: vscode.TreeItem[] = [];
+  
+  constructor(index: number) {
+    super(`変換候補 ${index + 1}`, vscode.TreeItemCollapsibleState.Expanded);
+  }
+}
+
+// slowコードの表示形式
+class SlowItem extends vscode.TreeItem {
+  constructor(public readonly slow: string) {
+    super(`slow: "${slow}"`, vscode.TreeItemCollapsibleState.None);
+    this.tooltip = slow;
+    // クリックしてコピーできる
+    this.command = {
+      command: 'jsbooster.copyToClipboard',
+      title: 'コピー',
+      arguments: [slow]
+    };
+  }
+}
+
+// fastコードの表示形式
+class FastArrowItem extends vscode.TreeItem {
+  constructor(public readonly fast: string) {
+    super(`→ fast: "${fast}"`, vscode.TreeItemCollapsibleState.None);
+    this.tooltip = fast;
+    // クリックしてコピーできる
+    this.command = {
+      command: 'jsbooster.copyToClipboard',
+      title: 'コピー',
+      arguments: [fast]
+    };
+  }
+}
+
+// 該当コードが存在しないときの表示形式
+class EmptyResultItem extends vscode.TreeItem {
+  constructor() {
+    super("候補が見つかりませんでした", vscode.TreeItemCollapsibleState.None);
+    this.tooltip = "候補が見つかりませんでした";
+  }
+}
+
+// サイドバーの表示状態を確認する関数
+async function isSidebarVisible(): Promise<boolean> {
+  const views = await vscode.window.tabGroups.all
+    .flatMap(group => group.tabs)
+    .filter(tab => tab.input instanceof vscode.TabInputWebview)
+    .map(tab => (tab.input as vscode.TabInputWebview).viewType);
+  
+  return views.includes('jsbooster-sidebar');
 }
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Congratulations, your extension "jsbooster" is now active!');
 
-  // Results Providerの作成とビューへの登録
   const resultsProvider = new ResultsProvider();
   vscode.window.registerTreeDataProvider('jsboosterResults', resultsProvider);
 
-  // コマンドの登録
+  // 選択したコードをAPIに投げて返答を表示するコマンドの登録
   let disposable = vscode.commands.registerCommand('jsbooster.slow2fast_code', async () => {
     const editor = vscode.window.activeTextEditor;
 
     if (editor) {
       const document = editor.document;
       const selection = editor.selection;
-      
       // 選択したテキストを取得
       const selectedText = document.getText(selection);
 
       if (selectedText) {
         try {
-          // APIを叩く 入力値をキーとして値を取得
+          // API叩き部分
           const res = await callAPI(selectedText) as ApiResponse;
           const responseMessage: { fast: string; slow: string }[] = 
             Array.isArray(res['response']) ? res['response'] : [];
 
-          /*
-          if (responseMessage.length === 0) {
-            vscode.window.showInformationMessage("候補が見つかりませんでした");
-            resultsProvider.clear();
-            return;
-          } 
-          */
-
-          // 結果をサイドバーに表示
-          resultsProvider.refresh(responseMessage);
+          // サイドバーの表示状態を確認
+          const isVisible = await isSidebarVisible();
           
-          // サイドバーを表示
-          vscode.commands.executeCommand('workbench.view.extension.jsbooster-sidebar');
+          // 結果を更新
+          resultsProvider.refresh(selectedText, responseMessage);
+
+          // サイドバーが表示されていない場合のみ、表示する
+          if (!isVisible) {
+            await vscode.commands.executeCommand('workbench.view.extension.jsbooster-sidebar');
+          }
+
+          // フォーカスをビューに移動（サイドバーが既に開いている場合も含む）
+          await vscode.commands.executeCommand('jsboosterResults.focus');
 
         } catch (error) {
           vscode.window.showErrorMessage('APIの呼び出しに失敗しました');
@@ -111,9 +166,15 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  context.subscriptions.push(disposable);
+  // クリックした要素をクリップボードにコピーするコマンドの登録
+  let copyDisposable = vscode.commands.registerCommand('jsbooster.copyToClipboard', (text: string) => {
+    vscode.env.clipboard.writeText(text);
+    vscode.window.showInformationMessage('コピーしました');
+  });
 
-  // ステータスバーの設定
+  context.subscriptions.push(disposable, copyDisposable);
+
+  // 拡張機能ボタンの設定
   const button = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     0

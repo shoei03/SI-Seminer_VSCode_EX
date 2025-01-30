@@ -37,80 +37,120 @@ exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const index_1 = require("./index");
-// サイドバーへの表示形式の成形
 class ResultsProvider {
     _onDidChangeTreeData = new vscode.EventEmitter();
     onDidChangeTreeData = this._onDidChangeTreeData.event;
     results = [];
-    noResultsMessage = false; // 結果が空値かどうかのフラグ
-    refresh(data) {
+    refresh(selectedText, data) {
+        this.results = [new SelectedTextItem(selectedText)];
         if (data.length === 0) {
-            this.noResultsMessage = true;
-            this.results = [];
+            this.results.push(new EmptyResultItem());
         }
         else {
-            this.noResultsMessage = false;
-            this.results = data.map(item => new ResultItem(`Slow: ${item.slow}`, `Fast: ${item.fast}`));
+            data.forEach((item, index) => {
+                const parentItem = new PairGroupItem(index);
+                parentItem.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
+                this.results.push(parentItem);
+                parentItem.children = [
+                    new SlowItem(item.slow),
+                    new FastArrowItem(item.fast)
+                ];
+            });
         }
         this._onDidChangeTreeData.fire();
+        // 強制的に全ての項目を展開
+        vscode.commands.executeCommand('workbench.actions.treeView.jsboosterResults.expandAll');
     }
     getTreeItem(element) {
         return element;
     }
     getChildren(element) {
-        if (this.noResultsMessage) {
-            return Promise.resolve([new ResultItem("候補が見つかりませんでした", "")]);
-        }
-        if (element) {
-            return Promise.resolve([]);
+        if (element instanceof PairGroupItem) {
+            return Promise.resolve(element.children);
         }
         return Promise.resolve(this.results);
     }
     clear() {
-        this.results = [];
-        this.noResultsMessage = false;
+        this.results = [new EmptyResultItem()];
         this._onDidChangeTreeData.fire();
     }
 }
-class ResultItem extends vscode.TreeItem {
-    slow;
-    fast;
-    constructor(slow, fast) {
-        super(`${slow} → \n${fast}`, vscode.TreeItemCollapsibleState.None);
-        this.slow = slow;
-        this.fast = fast;
-        this.tooltip = `${slow} → ${fast}`;
+class SelectedTextItem extends vscode.TreeItem {
+    constructor(selectedText) {
+        super(`選択したコード : ${selectedText}`, vscode.TreeItemCollapsibleState.None);
+        this.tooltip = selectedText;
     }
+}
+class PairGroupItem extends vscode.TreeItem {
+    children = [];
+    constructor(index) {
+        super(`変換候補 ${index + 1}`, vscode.TreeItemCollapsibleState.Expanded);
+    }
+}
+class SlowItem extends vscode.TreeItem {
+    slow;
+    constructor(slow) {
+        super(`slow: "${slow}"`, vscode.TreeItemCollapsibleState.None);
+        this.slow = slow;
+        this.tooltip = slow;
+        this.command = {
+            command: 'jsbooster.copyToClipboard',
+            title: 'コピー',
+            arguments: [slow]
+        };
+    }
+}
+class FastArrowItem extends vscode.TreeItem {
+    fast;
+    constructor(fast) {
+        super(`→ fast: "${fast}"`, vscode.TreeItemCollapsibleState.None);
+        this.fast = fast;
+        this.tooltip = fast;
+        this.command = {
+            command: 'jsbooster.copyToClipboard',
+            title: 'コピー',
+            arguments: [fast]
+        };
+    }
+}
+class EmptyResultItem extends vscode.TreeItem {
+    constructor() {
+        super("候補が見つかりませんでした", vscode.TreeItemCollapsibleState.None);
+        this.tooltip = "候補が見つかりませんでした";
+    }
+}
+// サイドバーの表示状態を確認する関数
+async function isSidebarVisible() {
+    const views = await vscode.window.tabGroups.all
+        .flatMap(group => group.tabs)
+        .filter(tab => tab.input instanceof vscode.TabInputWebview)
+        .map(tab => tab.input.viewType);
+    return views.includes('jsbooster-sidebar');
 }
 function activate(context) {
     console.log('Congratulations, your extension "jsbooster" is now active!');
-    // Results Providerの作成とビューへの登録
     const resultsProvider = new ResultsProvider();
     vscode.window.registerTreeDataProvider('jsboosterResults', resultsProvider);
-    // コマンドの登録
     let disposable = vscode.commands.registerCommand('jsbooster.slow2fast_code', async () => {
         const editor = vscode.window.activeTextEditor;
         if (editor) {
             const document = editor.document;
             const selection = editor.selection;
-            // 選択したテキストを取得
             const selectedText = document.getText(selection);
             if (selectedText) {
                 try {
-                    // APIを叩く 入力値をキーとして値を取得
                     const res = await (0, index_1.callAPI)(selectedText);
                     const responseMessage = Array.isArray(res['response']) ? res['response'] : [];
-                    /*
-                    if (responseMessage.length === 0) {
-                      vscode.window.showInformationMessage("候補が見つかりませんでした");
-                      resultsProvider.clear();
-                      return;
+                    // サイドバーの表示状態を確認
+                    const isVisible = await isSidebarVisible();
+                    // 結果を更新
+                    resultsProvider.refresh(selectedText, responseMessage);
+                    // サイドバーが表示されていない場合のみ、表示する
+                    if (!isVisible) {
+                        await vscode.commands.executeCommand('workbench.view.extension.jsbooster-sidebar');
                     }
-                    */
-                    // 結果をサイドバーに表示
-                    resultsProvider.refresh(responseMessage);
-                    // サイドバーを表示
-                    vscode.commands.executeCommand('workbench.view.extension.jsbooster-sidebar');
+                    // フォーカスをビューに移動（サイドバーが既に開いている場合も含む）
+                    await vscode.commands.executeCommand('jsboosterResults.focus');
                 }
                 catch (error) {
                     vscode.window.showErrorMessage('APIの呼び出しに失敗しました');
@@ -125,8 +165,11 @@ function activate(context) {
             vscode.window.showInformationMessage('アクティブなエディタがありません。');
         }
     });
-    context.subscriptions.push(disposable);
-    // ステータスバーの設定
+    let copyDisposable = vscode.commands.registerCommand('jsbooster.copyToClipboard', (text) => {
+        vscode.env.clipboard.writeText(text);
+        vscode.window.showInformationMessage('コピーしました');
+    });
+    context.subscriptions.push(disposable, copyDisposable);
     const button = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 0);
     button.name = 'May Convert Fast JS';
     button.command = 'jsbooster.slow2fast_code';
