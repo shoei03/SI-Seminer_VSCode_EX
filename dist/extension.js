@@ -37,20 +37,23 @@ exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const index_1 = require("./index");
+// サイドバーへの表示形式の成形
 class ResultsProvider {
     _onDidChangeTreeData = new vscode.EventEmitter();
     onDidChangeTreeData = this._onDidChangeTreeData.event;
     results = [];
     refresh(selectedText, data) {
+        // 選択した文字列
         this.results = [new SelectedTextItem(selectedText)];
         if (data.length === 0) {
-            this.results.push(new EmptyResultItem());
+            this.results.push(new EmptyResultItem()); // 該当コードが存在しないとき
         }
         else {
             data.forEach((item, index) => {
                 const parentItem = new PairGroupItem(index);
                 parentItem.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
                 this.results.push(parentItem);
+                // slowとfastをそれぞれ格納
                 parentItem.children = [
                     new SlowItem(item.slow),
                     new FastArrowItem(item.fast)
@@ -75,24 +78,28 @@ class ResultsProvider {
         this._onDidChangeTreeData.fire();
     }
 }
+// 選択した文字列の表示形式
 class SelectedTextItem extends vscode.TreeItem {
     constructor(selectedText) {
         super(`選択したコード : ${selectedText}`, vscode.TreeItemCollapsibleState.None);
         this.tooltip = selectedText;
     }
 }
+// 返されたslowとfastのペアをまとめる
 class PairGroupItem extends vscode.TreeItem {
     children = [];
     constructor(index) {
         super(`変換候補 ${index + 1}`, vscode.TreeItemCollapsibleState.Expanded);
     }
 }
+// slowコードの表示形式
 class SlowItem extends vscode.TreeItem {
     slow;
     constructor(slow) {
         super(`slow: "${slow}"`, vscode.TreeItemCollapsibleState.None);
         this.slow = slow;
         this.tooltip = slow;
+        // クリックしてコピーできる
         this.command = {
             command: 'jsbooster.copyToClipboard',
             title: 'コピー',
@@ -100,12 +107,14 @@ class SlowItem extends vscode.TreeItem {
         };
     }
 }
+// fastコードの表示形式
 class FastArrowItem extends vscode.TreeItem {
     fast;
     constructor(fast) {
         super(`→ fast: "${fast}"`, vscode.TreeItemCollapsibleState.None);
         this.fast = fast;
         this.tooltip = fast;
+        // クリックしてコピーできる
         this.command = {
             command: 'jsbooster.copyToClipboard',
             title: 'コピー',
@@ -113,6 +122,7 @@ class FastArrowItem extends vscode.TreeItem {
         };
     }
 }
+// 該当コードが存在しないときの表示形式
 class EmptyResultItem extends vscode.TreeItem {
     constructor() {
         super("候補が見つかりませんでした", vscode.TreeItemCollapsibleState.None);
@@ -131,14 +141,17 @@ function activate(context) {
     console.log('Congratulations, your extension "jsbooster" is now active!');
     const resultsProvider = new ResultsProvider();
     vscode.window.registerTreeDataProvider('jsboosterResults', resultsProvider);
+    // 選択したコードをAPIに投げて返答を表示するコマンドの登録
     let disposable = vscode.commands.registerCommand('jsbooster.slow2fast_code', async () => {
         const editor = vscode.window.activeTextEditor;
         if (editor) {
             const document = editor.document;
             const selection = editor.selection;
+            // 選択したテキストを取得
             const selectedText = document.getText(selection);
             if (selectedText) {
                 try {
+                    // API叩き部分
                     const res = await (0, index_1.callAPI)(selectedText);
                     const responseMessage = Array.isArray(res['response']) ? res['response'] : [];
                     // サイドバーの表示状態を確認
@@ -165,11 +178,13 @@ function activate(context) {
             vscode.window.showInformationMessage('アクティブなエディタがありません。');
         }
     });
+    // クリックした要素をクリップボードにコピーするコマンドの登録
     let copyDisposable = vscode.commands.registerCommand('jsbooster.copyToClipboard', (text) => {
         vscode.env.clipboard.writeText(text);
         vscode.window.showInformationMessage('コピーしました');
     });
     context.subscriptions.push(disposable, copyDisposable);
+    // 拡張機能ボタンの設定
     const button = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 0);
     button.name = 'May Convert Fast JS';
     button.command = 'jsbooster.slow2fast_code';
