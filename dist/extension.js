@@ -61,8 +61,6 @@ class ResultsProvider {
             });
         }
         this._onDidChangeTreeData.fire();
-        // 強制的に全ての項目を展開
-        vscode.commands.executeCommand('workbench.actions.treeView.jsboosterResults.expandAll');
     }
     getTreeItem(element) {
         return element;
