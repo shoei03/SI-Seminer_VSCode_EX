@@ -3,8 +3,8 @@ import json
 
 from simhash import Simhash
 
-SLOW_FILE = '../data/codes_slow.json'
-FAST_FILE = '../data/codes_fast.json'
+SLOW_FILE = './data/codes_slow.json'
+FAST_FILE = './data/codes_fast.json'
 
 class ChangeCode:
     def __init__(self, slow_code_plain):
