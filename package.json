@@ -9,23 +9,41 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:jsbooster.showSelectedText"
-  ],
   "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "contributes": {
     "commands": [
       {
-        "command": "jsbooster.showSelectedText",
-        "title": "Show Selected Text"
+        "command": "jsbooster.slow2fast_code",
+        "title": "Convert to Fast Code"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "jsbooster.showSelectedText",
+          "command": "jsbooster.slow2fast_code",
           "when": "editorTextFocus && editorHasSelection",
           "group": "navigation"
+        }
+      ]
+    },
+    "views": {
+      "jsbooster-sidebar": [
+        {
+          "id": "jsboosterResults",
+          "name": "Code Suggestions",
+          "type": "tree"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "jsbooster-sidebar",
+          "title": "JS Booster",
+          "icon": "$(rocket)"
         }
       ]
     }
