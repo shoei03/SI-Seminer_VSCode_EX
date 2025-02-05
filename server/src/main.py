@@ -4,8 +4,8 @@ import change
 app = FastAPI()
 
 @app.get("/")
-async def root():
-  return {"greeting":"Hello world"}
+def root() -> dict:
+  return {"response":"Put the code you want to convert in the URL."}
 
 @app.get("/{slow_code_plain}")
 async def change_code(slow_code_plain: str) -> dict:

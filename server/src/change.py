@@ -3,8 +3,8 @@ import json
 
 from simhash import Simhash
 
-SLOW_FILE = './codes_slow.json'
-FAST_FILE = './codes_fast.json'
+SLOW_FILE = './data/codes_slow.json'
+FAST_FILE = './data/codes_fast.json'
 
 class ChangeCode:
     def __init__(self, slow_code_plain):
@@ -16,10 +16,10 @@ class ChangeCode:
         """特徴を抽出する関数
 
         Args:
-            s (_type_): _description_
+            s (str): 生のコード
 
         Returns:
-            _type_: _description_
+            list: ハッシュ値に与える特徴
         """
         width = 3
         s = s.lower()
@@ -91,8 +91,8 @@ class ChangeCode:
                     'fast':fast_code,
                     'slow':slow_code
                 })
-                print(fast_code)
+                print(f"早いコード: {fast_codes}")
         else:
             print("類似した文字列が見つかりませんでした。")
-
+            
         return fast_codes

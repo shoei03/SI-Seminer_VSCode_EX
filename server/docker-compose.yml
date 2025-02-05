@@ -1,0 +1,10 @@
+services:
+  api:
+    build: .
+    container_name: jsbooster-server
+    ports:
+      - 8000:8000
+    volumes:
+      - type: bind
+        source: .
+        target: /app
